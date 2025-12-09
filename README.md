@@ -1,2 +1,2 @@
-# hybrid-species-distribution-models
+# hybrid-sdm
 Repository containing the code accompanying manuscript "The effect of trait choice on hybrid species distribution model projections under climate change"
