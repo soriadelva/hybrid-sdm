@@ -50,3 +50,8 @@ rsconnect/
 
 # Mac OS
 .DS_Store
+
+#Folders with results and figures
+results
+figures
+.renviron
