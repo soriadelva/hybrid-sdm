@@ -53,6 +53,114 @@ background <- read.csv2(file.path(background_folder,paste0("Background_points_",
 plot.google(background, 3, "black")
 
 
+# --------------------------------------------------------------------------------
+#-- Extract LTmin_temperature and LTmax temperature at training data locations ---
+#---------------------------------------------------------------------------------
+data.folder.rasters  <- file.path("data", "Input", "Rasters", "Layers_present")
+LTmintemp_r<-terra::rast(file.path(data.folder.rasters, "Present.Benthic.Min.Depth.Temperature.Lt.min.tif"))
+LTmaxtemp_r<-terra::rast(file.path(data.folder.rasters, "Present.Benthic.Min.Depth.Temperature.Lt.max.tif"))
+
+LTmintemp_occ<-terra::extract(LTmintemp_r, rbind(occurrence.records, background), ID=F)
+LTmaxtemp_occ<-terra::extract(LTmaxtemp_r, rbind(occurrence.records, background), ID=F)
+
+LTmintemp_seq <- data.frame(Temperature=seq(min(LTmintemp_occ), max(LTmintemp_occ), length.out=100))
+LTmaxtemp_seq <- data.frame(Temperature=seq(min(LTmaxtemp_occ), max(LTmaxtemp_occ), length.out=100))
+
+
+# --------------------------------------------------------------------------------
+#---------------------Fit physiological models on the data -----------------------
+#---------------------------------------------------------------------------------
+input_folder<-file.path("data", "Input", "Physiology")
+Growth <- read.csv2(file.path(input_folder,"Dictyota_growth.csv"))%>%
+  dplyr::rename(Value = Growth_rate,
+                Temperature = Temperature_C) %>%
+  dplyr::mutate(Trait = "Growth")%>%
+  dplyr::select(Value, Trait, Temperature)
+
+FvFm <- read.csv2(file.path(input_folder,"Dictyota_FvFm.csv"))%>%
+  dplyr::rename(Value = FvFm,
+                Temperature = Temperature_C) %>%
+  dplyr::mutate(Trait = "FvFm")%>%
+  dplyr::select(Value, Trait, Temperature)
+
+Germination <- read.csv2(file.path(input_folder,"Dictyota_germination.csv"))%>%
+  dplyr::rename(Value = Germination_rate_percent,
+                Temperature = Temperature_C) %>%
+  dplyr::mutate(Trait = "Germination")%>%
+  dplyr::select(Value, Trait, Temperature)
+
+Alldata<-bind_rows(FvFm, Growth, Germination)%>%
+  mutate(TemperatureK = Temperature + 273.15)
+
+#------------------------------------------------------------
+#--------------- Define best TPC models----------------------
+#------------------------------------------------------------
+#For growth
+formula5 <- as.formula( Value ~ ifelse(Temperature <= Topt,
+                                       Gmax * exp(-((Temperature - Topt) / (2 * a))^2),
+                                       Gmax - Gmax * (((Temperature - Topt) / (Topt - Tmax))^2)))#Deutsch
+
+#For FvFm and Germination
+formula7 <- as.formula(Value~ a*exp(-0.5*(abs(Temperature-tref)/b)^c)) # modification of a gaussian function
+
+
+#------------------------------------------------------------
+#--------------- Prepare trait datasets----------------------
+#------------------------------------------------------------
+#Initialize trait dataframes
+growth_data<-filter(Alldata, Trait=="Growth")
+pam_data<-filter(Alldata, Trait=="FvFm")
+germination_data<-filter(Alldata, Trait=="Germination")
+
+
+#--------------------------------------------------
+# Create fits using the best model
+#--------------------------------------------------
+growth_fit<- nlsLM(formula5, 
+                   data=growth_data, 
+                   start = list(Gmax = 8, Tmax = 32, Topt = 22, a=4), 
+                   control = list(maxiter = 100))
+
+pam_fit<- nlsLM(formula7, 
+                data=pam_data, 
+                start = list(a = 10, b = 10, tref=20, c=10))
+
+germination_fit<- nlsLM(formula7, 
+                        data=germination_data, 
+                        start = list(a = 100, b = 10, tref=20, c=10))
+
+
+# --------------------------------------------------------------------------------
+#--------Create hybrid temperature vectors for partial effect plots---------------
+#---------------------------------------------------------------------------------
+
+LTmintemp_seq$Growth<-predict(growth_fit, LTmintemp_seq)
+LTmintemp_seq$FvFm <- predict(pam_fit, LTmintemp_seq)
+LTmintemp_seq$Germination <- predict(germination_fit, LTmintemp_seq)
+
+LTmaxtemp_seq$Growth<-predict(growth_fit, LTmaxtemp_seq)
+LTmaxtemp_seq$FvFm <- predict(pam_fit, LTmaxtemp_seq)
+LTmaxtemp_seq$Germination <- predict(germination_fit, LTmaxtemp_seq)
+
+LTmintemp_seq<-LTmintemp_seq%>%
+  mutate(Growth = ifelse(Growth < 0, 0, Growth))
+LTmaxtemp_seq<-LTmaxtemp_seq%>%
+  mutate(Growth = ifelse(Growth < 0, 0, Growth))
+
+
+# --------------------------------------------------------------------------------
+#----------Create other vectors for partial effect plots---------------------
+#---------------------------------------------------------------------------------
+Mean_light_r<-terra::rast(file.path(data.folder.rasters, "light.at.bottom.Benthic.Min.Var.Mean.tif"))
+Min_salinity_r<-terra::rast(file.path(data.folder.rasters, "Present.Benthic.Min.Depth.Salinity.Lt.min.tif"))
+
+Meanlight_occ<-terra::extract(Mean_light_r, rbind(occurrence.records, background), ID=F)
+LTminsalinity_occ<-terra::extract(Min_salinity_r, rbind(occurrence.records, background), ID=F)
+
+Meanlight_seq <- data.frame(Light=seq(min(Meanlight_occ), max(Meanlight_occ), length.out=100))
+LTminsalinity_seq <- data.frame(Salinity=seq(min(LTminsalinity_occ), max(LTminsalinity_occ), length.out=100))
+
+
 # ---------------------------------------------------------------
 #--------- Import MedSea shape -------------
 #----------------------------------------------------------------
@@ -74,6 +182,7 @@ for(Model_type in Model_types){
   area_depth_bootstrap_df <- data.frame()
   logs_bootstrap_df<-data.frame()
   area_depth_future_bootstrap_df<-data.frame()
+  
   
   # ---------------------------------------------------------------
   #-------------------- Start bootstrap loop ---------------------
