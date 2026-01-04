@@ -53,6 +53,114 @@ background <- read.csv2(file.path(background_folder,paste0("Background_points_",
 plot.google(background, 3, "black")
 
 
+# --------------------------------------------------------------------------------
+#-- Extract LTmin_temperature and LTmax temperature at training data locations ---
+#---------------------------------------------------------------------------------
+data.folder.rasters  <- file.path("data", "Input", "Rasters", "Layers_present")
+LTmintemp_r<-terra::rast(file.path(data.folder.rasters, "Present.Benthic.Min.Depth.Temperature.Lt.min.tif"))
+LTmaxtemp_r<-terra::rast(file.path(data.folder.rasters, "Present.Benthic.Min.Depth.Temperature.Lt.max.tif"))
+
+LTmintemp_occ<-terra::extract(LTmintemp_r, rbind(occurrence.records, background), ID=F)
+LTmaxtemp_occ<-terra::extract(LTmaxtemp_r, rbind(occurrence.records, background), ID=F)
+
+LTmintemp_seq <- data.frame(Temperature=seq(min(LTmintemp_occ), max(LTmintemp_occ), length.out=100))
+LTmaxtemp_seq <- data.frame(Temperature=seq(min(LTmaxtemp_occ), max(LTmaxtemp_occ), length.out=100))
+
+
+# --------------------------------------------------------------------------------
+#---------------------Fit physiological models on the data -----------------------
+#---------------------------------------------------------------------------------
+input_folder<-file.path("data", "Input", "Physiology")
+Growth <- read.csv2(file.path(input_folder,"Dictyota_growth.csv"))%>%
+  dplyr::rename(Value = Growth_rate,
+                Temperature = Temperature_C) %>%
+  dplyr::mutate(Trait = "Growth")%>%
+  dplyr::select(Value, Trait, Temperature)
+
+FvFm <- read.csv2(file.path(input_folder,"Dictyota_FvFm.csv"))%>%
+  dplyr::rename(Value = FvFm,
+                Temperature = Temperature_C) %>%
+  dplyr::mutate(Trait = "FvFm")%>%
+  dplyr::select(Value, Trait, Temperature)
+
+Germination <- read.csv2(file.path(input_folder,"Dictyota_germination.csv"))%>%
+  dplyr::rename(Value = Germination_rate_percent,
+                Temperature = Temperature_C) %>%
+  dplyr::mutate(Trait = "Germination")%>%
+  dplyr::select(Value, Trait, Temperature)
+
+Alldata<-bind_rows(FvFm, Growth, Germination)%>%
+  mutate(TemperatureK = Temperature + 273.15)
+
+#------------------------------------------------------------
+#--------------- Define best TPC models----------------------
+#------------------------------------------------------------
+#For growth
+formula5 <- as.formula( Value ~ ifelse(Temperature <= Topt,
+                                       Gmax * exp(-((Temperature - Topt) / (2 * a))^2),
+                                       Gmax - Gmax * (((Temperature - Topt) / (Topt - Tmax))^2)))#Deutsch
+
+#For FvFm and Germination
+formula7 <- as.formula(Value~ a*exp(-0.5*(abs(Temperature-tref)/b)^c)) # modification of a gaussian function
+
+
+#------------------------------------------------------------
+#--------------- Prepare trait datasets----------------------
+#------------------------------------------------------------
+#Initialize trait dataframes
+growth_data<-filter(Alldata, Trait=="Growth")
+pam_data<-filter(Alldata, Trait=="FvFm")
+germination_data<-filter(Alldata, Trait=="Germination")
+
+
+#--------------------------------------------------
+# Create fits using the best model
+#--------------------------------------------------
+growth_fit<- nlsLM(formula5, 
+                   data=growth_data, 
+                   start = list(Gmax = 8, Tmax = 32, Topt = 22, a=4), 
+                   control = list(maxiter = 100))
+
+pam_fit<- nlsLM(formula7, 
+                data=pam_data, 
+                start = list(a = 10, b = 10, tref=20, c=10))
+
+germination_fit<- nlsLM(formula7, 
+                        data=germination_data, 
+                        start = list(a = 100, b = 10, tref=20, c=10))
+
+
+# --------------------------------------------------------------------------------
+#--------Create hybrid temperature vectors for partial effect plots---------------
+#---------------------------------------------------------------------------------
+
+LTmintemp_seq$Growth<-predict(growth_fit, LTmintemp_seq)
+LTmintemp_seq$FvFm <- predict(pam_fit, LTmintemp_seq)
+LTmintemp_seq$Germination <- predict(germination_fit, LTmintemp_seq)
+
+LTmaxtemp_seq$Growth<-predict(growth_fit, LTmaxtemp_seq)
+LTmaxtemp_seq$FvFm <- predict(pam_fit, LTmaxtemp_seq)
+LTmaxtemp_seq$Germination <- predict(germination_fit, LTmaxtemp_seq)
+
+LTmintemp_seq<-LTmintemp_seq%>%
+  mutate(Growth = ifelse(Growth < 0, 0, Growth))
+LTmaxtemp_seq<-LTmaxtemp_seq%>%
+  mutate(Growth = ifelse(Growth < 0, 0, Growth))
+
+
+# --------------------------------------------------------------------------------
+#----------Create other vectors for partial effect plots---------------------
+#---------------------------------------------------------------------------------
+Mean_light_r<-terra::rast(file.path(data.folder.rasters, "light.at.bottom.Benthic.Min.Var.Mean.tif"))
+Min_salinity_r<-terra::rast(file.path(data.folder.rasters, "Present.Benthic.Min.Depth.Salinity.Lt.min.tif"))
+
+Meanlight_occ<-terra::extract(Mean_light_r, rbind(occurrence.records, background), ID=F)
+LTminsalinity_occ<-terra::extract(Min_salinity_r, rbind(occurrence.records, background), ID=F)
+
+Meanlight_seq <- data.frame(Light=seq(min(Meanlight_occ), max(Meanlight_occ), length.out=100))
+LTminsalinity_seq <- data.frame(Salinity=seq(min(LTminsalinity_occ), max(LTminsalinity_occ), length.out=100))
+
+
 # ---------------------------------------------------------------
 #--------- Import MedSea shape -------------
 #----------------------------------------------------------------
@@ -75,10 +183,11 @@ for(Model_type in Model_types){
   logs_bootstrap_df<-data.frame()
   area_depth_future_bootstrap_df<-data.frame()
   
+  
   # ---------------------------------------------------------------
   #-------------------- Start bootstrap loop ---------------------
   #----------------------------------------------------------------
-  for(bootstrap_run in 1:50){
+  for(bootstrap_run in 1:500){
     
     start.time<-Sys.time()
     message("Predicting for ", Model_type,"model: bootstrap run", bootstrap_run)
@@ -217,8 +326,8 @@ for(Model_type in Model_types){
                                                       replace = TRUE),]
     set.seed(bootstrap_run)
     background.resampled <- background[sample(seq_len(nrow(background)),
-                                                      size = nrow(background),
-                                                      replace = TRUE),]
+                                              size = nrow(background),
+                                              replace = TRUE),]
     
     #Use a resampling of pseudoabsences and presences to train the final model
     train.dataset <- data.frame( PA = c( rep(1,nrow(occurrence.resampled)) , rep(0,nrow(background.resampled)) ) , terra::extract( rasters, rbind( occurrence.resampled, background.resampled), ID=F ) )
@@ -246,14 +355,6 @@ for(Model_type in Model_types){
                        silent=TRUE,
                        var.monotone = variable.monotonic.response ,
                        verbose=FALSE)
-    
-    
-    #---------------------------------
-    #---------Mark time ---------
-    #---------------------------------
-    elapsed <- round(as.numeric(difftime(Sys.time(), start.time, units = "mins")), 2)
-    message(sprintf("[Model: %s] Completed model fitting in %0.2f minutes", 
-                    Model_type,  elapsed))
     
     
     #----------------------------------------------------------------------------
@@ -300,36 +401,36 @@ for(Model_type in Model_types){
     # ----------------------------Variable contribution --------------------------------------
     # ------------------------------------------------------------------------------------
     suppressMessages({
-    #Create folder for results
-    varimp_folder<-file.path("results", "bootstrap_resampling", "variable_importance")
-    if(!dir.exists(varimp_folder))dir.create(varimp_folder,recursive=TRUE)
-    
-    #Get variable importance dataframe
-    varimp_df<-summary.model(model, print.data=T)
-    varimp_df<-varimp_df%>%
-      mutate(Variable = case_when(grepl("Salinity.Lt.min", Variable) ~ "Min. salinity",
-                                  grepl("light", Variable, ignore.case = TRUE) ~ "Mean light",
-                                  TRUE ~ Variable))%>%
-      mutate(Variable = case_when(grepl (paste0("Temperature.Lt.max|", Model_type, "_LTmax"), Variable) ~ "Max. temperature",
-                                  grepl(paste0("Temperature.Lt.min|", Model_type, "_LTmin"), Variable) ~ "Min. temperature",
-                                  TRUE ~ Variable))%>%
-      mutate(Variable = factor(Variable, levels = c("Min. temperature",
-                                                    "Min. salinity",
-                                                    "Max. temperature",
-                                                    "Mean light")),
-             Boostrap_run = bootstrap_run)
-    
-    if(nrow(varimp_bootstrap_df)==0){
-      varimp_bootstrap_df <- varimp_df
-    }else{
-      varimp_bootstrap_df <- bind_rows(varimp_bootstrap_df, varimp_df)
-    }
-    
-    if(bootstrap_run==50){
-      #Export
-      write.csv2(varimp_bootstrap_df, file.path(varimp_folder, paste0(Model_type, "_variable_importance.csv")), row.names=FALSE)
-    }
-    
+      #Create folder for results
+      varimp_folder<-file.path("results", "bootstrap_resampling", "variable_importance")
+      if(!dir.exists(varimp_folder))dir.create(varimp_folder,recursive=TRUE)
+      
+      #Get variable importance dataframe
+      varimp_df<-summary.model(model, print.data=T)
+      varimp_df<-varimp_df%>%
+        mutate(Variable = case_when(grepl("Salinity.Lt.min", Variable) ~ "Min. salinity",
+                                    grepl("light", Variable, ignore.case = TRUE) ~ "Mean light",
+                                    TRUE ~ Variable))%>%
+        mutate(Variable = case_when(grepl (paste0("Temperature.Lt.max|", Model_type, "_LTmax"), Variable) ~ "Max. temperature",
+                                    grepl(paste0("Temperature.Lt.min|", Model_type, "_LTmin"), Variable) ~ "Min. temperature",
+                                    TRUE ~ Variable))%>%
+        mutate(Variable = factor(Variable, levels = c("Min. temperature",
+                                                      "Min. salinity",
+                                                      "Max. temperature",
+                                                      "Mean light")),
+               Boostrap_run = bootstrap_run)
+      
+      if(nrow(varimp_bootstrap_df)==0){
+        varimp_bootstrap_df <- varimp_df
+      }else{
+        varimp_bootstrap_df <- bind_rows(varimp_bootstrap_df, varimp_df)
+      }
+      
+      if(bootstrap_run==500){
+        #Export
+        write.csv2(varimp_bootstrap_df, file.path(varimp_folder, paste0(Model_type, "_variable_importance.csv")), row.names=FALSE)
+      }
+      
     })
     # ggplot(varimp_df, aes(x = Percentage, y =Variable)) +
     #  geom_col(fill = "steelblue") +
@@ -339,7 +440,60 @@ for(Model_type in Model_types){
     #        title = Model_type) +
     #  theme_bw()
     # 
-  
+    
+    
+    # ------------------------------------------------------------------------------------
+    #----------------------------Variable Response------------------------------------
+    # ------------------------------------------------------------------------------------
+    #Create folder for results
+    response_folder<-file.path("results", "bootstrap_resampling", "response_curves")
+    if(!dir.exists(response_folder))dir.create(response_folder,recursive=TRUE)
+    
+    #Obtain a dataframe with all responses
+    response_df<-data.frame()
+    for( var.n in 1:length(names(rasters))) {
+      response_curve<-model.plot.bootstrap(model_type=Model_type,
+                                           model=model,
+                                           predictor.variable=var.n,
+                                           mintemp.seq = LTmintemp_seq,
+                                           maxtemp.seq = LTmaxtemp_seq,
+                                           minsal.seq = LTminsalinity_seq,
+                                           meanlight.seq = Meanlight_seq)
+      
+      
+      variable<-names(rasters)[var.n]
+      
+      variable <- case_when(
+        grepl("Salinity.Lt.min", variable) ~ "Min_Salinity",
+        grepl("light", variable, ignore.case = TRUE) ~ "Mean_light",
+        grepl(paste0("Temperature.Lt.max|", Model_type, "_LTmax"), variable) ~ "Max_temperature",
+        grepl(paste0("Temperature.Lt.min|", Model_type, "_LTmin"), variable) ~ "Min_temperature",
+        TRUE ~ variable
+      )
+      
+      response_curve$Predictor_name<-variable
+      response_curve$Model_type<-Model_type
+      response_curve$ Boostrap_run <- bootstrap_run
+      
+      if(nrow(response_df)==0){
+        response_df<-response_curve
+      }else{
+        response_df<-bind_rows(response_df, response_curve)
+      }
+    }
+    
+    if(nrow(response_bootstrap_df)==0){
+      response_bootstrap_df <- response_df
+    }else{
+      response_bootstrap_df <- bind_rows(response_bootstrap_df, response_df)
+    }
+    
+    
+    #Export
+    if(bootstrap_run==500){
+      write.csv2(response_bootstrap_df, file.path(response_folder, paste0(Model_type, "_response_curves.csv")), row.names=FALSE)
+    }
+    
     
     #--------------------------------------------------------------------
     #----------------------Create and save MESS maps ---------------
@@ -426,7 +580,7 @@ for(Model_type in Model_types){
       }
       
       #--------------------
-      if(bootstrap_run==50 & Region =="MedSea"){
+      if(bootstrap_run==500 & Region =="MedSea"){
         #Export
         write.csv(area_depth_bootstrap_df, file.path(deptharea_folder, paste0("depth_area_info_all_",Model_type,"_present.csv")), row.names = F)
       }
@@ -486,7 +640,7 @@ for(Model_type in Model_types){
         logs_bootstrap_df <- bind_rows(logs_bootstrap_df, Overview)
       }
       
-      if(bootstrap_run==50){
+      if(bootstrap_run==500){
         write.csv2(logs_bootstrap_df, file.path(fut_log_folder, paste0(Model_type,"_raster_input_log_",predict.time,".csv")), row.names = FALSE)
       }
       
@@ -591,10 +745,17 @@ for(Model_type in Model_types){
           area_depth_future_bootstrap_df<- bind_rows(area_depth_future_bootstrap_df, area_depth_future)
         }
         
-
+        
       }
       
     }
+    
+    #---------------------------------
+    #---------Mark time ---------
+    #---------------------------------
+    elapsed <- round(as.numeric(difftime(Sys.time(), start.time, units = "mins")), 2)
+    message(sprintf("[Model: %s | Bootstrap run: %s] Completed bootstrap round in %0.2f minutes", 
+                    Model_type, bootstrap_run, elapsed))
     
   }
   
@@ -617,5 +778,5 @@ for(Model_type in Model_types){
     row.names = FALSE
   )
   
-
+  
 }
