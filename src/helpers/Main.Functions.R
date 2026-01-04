@@ -15,35 +15,36 @@ packages.to.use <- c(   "ecospat",
                         "ggplot2",
                         "spatstat",
                         "mboost",
-                       "ecodist"
-                       , "raster"
-                       , "gdata"
-                       , "leaflet"
-                       , "dismo"
-                       , "gbm"
-                       , "sm" 
-                       , "sp"
-                       , "biomod2"
-                       , "adehabitatHS"
-                       #, "SDMTools"
-                       , "parallel"
-                       , "doParallel"
-                       , "biganalytics"
-                       , "nicheROVER"
-                       , "vegan"
-                       , "parallel"
-                       #, "rgeos"
-                       #, "rgdal"
-                       , "sdmpredictors"
-                       , "usdm"
-                       , "doSNOW"
-                       , "ENMeval"
-                       #, "maptools"
-                       , "rgl"
-                       #, "rpanel"
-                       , "rJava"
-                       , "gstat"
-                       ,"spThin")
+                        "ecodist"
+                        , "raster"
+                        , "gdata"
+                        , "leaflet"
+                        , "dismo"
+                        , "minpack.lm"
+                        , "gbm"
+                        , "sm" 
+                        , "sp"
+                        , "biomod2"
+                        , "adehabitatHS"
+                        #, "SDMTools"
+                        , "parallel"
+                        , "doParallel"
+                        , "biganalytics"
+                        , "nicheROVER"
+                        , "vegan"
+                        , "parallel"
+                        #, "rgeos"
+                        #, "rgdal"
+                        , "sdmpredictors"
+                        , "usdm"
+                        , "doSNOW"
+                        , "ENMeval"
+                        #, "maptools"
+                        , "rgl"
+                        #, "rpanel"
+                        , "rJava"
+                        , "gstat"
+                        ,"spThin")
 
 #
 
@@ -161,7 +162,7 @@ relocate.coordinates.na <- function(occurrence.records,rasters,maximum.distance,
     near.cells <- numeric(nrow(coordinates.to.relocate))
     
     for(p in 1:nrow(coordinates.to.relocate)) {
-
+      
       near.cell.p <- spDistsN1( as.matrix(correct.points), as.matrix(coordinates.to.relocate[p,c("Lon","Lat")]),longlat=TRUE)
       
       if( near.cell.p[which.min(near.cell.p)] <= maximum.distance ) {
@@ -272,7 +273,7 @@ sample.background <- function(occurrence.records,rasters,polygon.pa,polygon.pa.t
       rasters_masked <-terra::mask(rasters, polygon.pa, inverse=TRUE) 
     }
   }
- 
+  
   
   # -----------------
   # Create a start set of sink points: all pixels that have values in our raster layer (i.e. not too deep and inside range that we cropped them) and without counting pixels that fall in the polygon 
@@ -333,7 +334,7 @@ sample.background <- function(occurrence.records,rasters,polygon.pa,polygon.pa.t
   
   # Generates bias surface kernel
   if( bias.surface.kernel ) {
-  
+    
     bias.surface <- terra::rast(bias.surface.path)
     
     #Mask with raster
@@ -367,11 +368,11 @@ sample.background <- function(occurrence.records,rasters,polygon.pa,polygon.pa.t
     to.generate <- min(n.background , nrow(unique(pa.environment))) #lowest value of the two
     
     #Perform kmeans clustering
-      set.seed(seed)
-      pa.environment <- kmeans(pa.environment,centers=to.generate,iter.max = 100, nstart = 30)$cluster # we want 10000 clusters. The data given by x are clustered by the k-means method, which aims to partition the points into 10000 groups such that the sum of squares from points to the assigned cluster centres is minimized. At the minimum, all cluster centres are at the mean of their Voronoi sets (the set of data points which are nearest to the cluster centre). you get a vector of sink points which get assigned a number for the cluster they are partitioned in 
-      pa.clusters <- unique( pa.environment )
-      
-
+    set.seed(seed)
+    pa.environment <- kmeans(pa.environment,centers=to.generate,iter.max = 100, nstart = 30)$cluster # we want 10000 clusters. The data given by x are clustered by the k-means method, which aims to partition the points into 10000 groups such that the sum of squares from points to the assigned cluster centres is minimized. At the minimum, all cluster centres are at the mean of their Voronoi sets (the set of data points which are nearest to the cluster centre). you get a vector of sink points which get assigned a number for the cluster they are partitioned in 
+    pa.clusters <- unique( pa.environment )
+    
+    
   }
   
   ## ------------
@@ -468,7 +469,7 @@ data.partitioning <- function(presences,absences,type,k) {
     
     min.lat <- min(min.lat, min.lat.abs)
     max.lat <- max(max.lat, max.lat.abs)
-
+    
     bands <- seq(from=min.lat,to=max.lat,length.out = k+1)
     bands <- data.frame(lat.from=bands[-length(bands)],lat.to=bands[-1])
     
@@ -483,7 +484,7 @@ data.partitioning <- function(presences,absences,type,k) {
 ## -----------------------
 
 summary.model <- function(model,print.data) {
-
+  
   
   if( class(model) == "gbm" ) { 
     
@@ -572,15 +573,93 @@ model.plot <- function(model_type,
 
 ## -----------------------
 
-predict.distribution <- function(rasters,model,reclass.to.one) {
+model.plot.bootstrap <- function(model_type,
+                                 model,
+                                 predictor.variable,
+                                 mintemp.seq,
+                                 maxtemp.seq,
+                                 minsal.seq,
+                                 meanlight.seq){
+  varname <- model$var.names[predictor.variable]
+  nt <- model$gbm.call$best.trees
+  
+  logit2prob <- function(logit){
+    odds <- exp(logit)
+    prob <- odds / (1 + odds)
+    return(prob)
+  }
+  
+  
+  # Get predictor values
+  if(varname == paste0(Model_type,"_LTmin_present")){
+    predictor.values<-mintemp.seq[Model_type][[1]]
+  }else if (varname == paste0(Model_type,"_LTmax_present")){
+    predictor.values<-maxtemp.seq[Model_type][[1]]
+  }else if (grepl("Salinity.Lt.min", varname)) {
+    predictor.values<-minsal.seq
+  }else if (grepl ("Temperature.Lt.max", varname)) {
+    predictor.values<-maxtemp.seq[1]
+  }else if (grepl("Temperature.Lt.min", varname)) {
+    predictor.values<-mintemp.seq[1]
+  }else if ( grepl("light", varname, ignore.case = TRUE)) {
+    predictor.values<-meanlight.seq
+  }
+  
+  
+  ## ---- compute partial dependence explicitly ----
+  X <- data.frame(predictor.values)
+  names(X) <- varname
+  
+  # Call gbm internal C function to compute partial dependence
+  effect <- .Call("gbm_plot",
+                  X = as.double(data.matrix(X)),
+                  cRows = as.integer(nrow(X)),
+                  cCols = as.integer(ncol(X)),
+                  n.class = as.integer(model$num.classes),
+                  i.var = as.integer(predictor.variable - 1),
+                  n.trees = as.integer(model$gbm.call$best.trees),
+                  initF = as.double(model$initF),
+                  trees = model$trees,
+                  c.splits = model$c.splits,
+                  var.type = as.integer(model$var.type),
+                  PACKAGE = "gbm")
+  
+  # ---- center effect (matches dismo::gbm.plot) ----
+  effect <- scale(effect, scale=FALSE)
+  
+  # ---- convert to probability  ----
+  effect <- logit2prob(effect)
+  
+  #---Store temperature data instead of trait values at temperature
+  if(varname == paste0(Model_type,"_LTmin_present")){
+    temp.values<-mintemp.seq["Temperature"][[1]]
+  }else if (varname == paste0(Model_type,"_LTmax_present")){
+    temp.values<-maxtemp.seq["Temperature"][[1]]
+  }else{
+    temp.values<-predictor.values
+  }
+  
+  # ---- return data frame ----
+  effect_df<-data.frame(Variable = predictor.values,
+                        Effect = effect,
+                        Variable_for_plotting = temp.values)
+  
+  colnames(effect_df) <- c("Variable", "Effect", "Variable_for_plotting")
+  
+  return(effect_df)
+}
 
+## -----------------------
+
+predict.distribution <- function(rasters,model,reclass.to.one) {
+  
   
   if( class(model)[1] == "gbm" ) {
     
     num.tress <- model$gbm.call$best.trees
     if(is.null(num.tress)) { num.tress <- length(model$trees) }
     predicted.distribution <- predict( rasters , model , n.trees=num.tress,type="response", na.rm=TRUE)
-  
+    
   }
   
   if(reclass.to.one) {
@@ -650,32 +729,32 @@ reclassify.predicted <- function(predicted.distribution,presences,absences,metho
 ## -----------------------
 get.fitted.temperature<-function(Trait, Tmin, Topt, Tmax, target, trait_fit, Model_type){
   
-trait_fun <- function(T) {
-  stopifnot(length(T) == 1)
-  as.numeric(predict(trait_fit, newdata = data.frame(Temperature = T)))
-}
-
-root_fun <- function(T) trait_fun(T) - target
-
-# low side of Topt
-T_low <- tryCatch(
-  {uniroot(root_fun, lower = Tmin, upper = Topt)$root},
-  error = function(e) {
-    NA
+  trait_fun <- function(T) {
+    stopifnot(length(T) == 1)
+    as.numeric(predict(trait_fit, newdata = data.frame(Temperature = T)))
   }
-)
-
-# high side of Topt
-T_high <- tryCatch(
-  {uniroot(root_fun, lower = Topt, upper = Tmax)$root},
-  error = function(e) {
-    NA
-  }
-)
-
-round(c(T_low, T_high), 6)
-output_df<-data.frame(Temperature = c(T_low, T_high), Value = c(target, target), Predictor_name=c(Trait, Trait), Model_type=c(Model_type, Model_type) )
-output_df<-output_df[!is.na(output_df$Temperature),]
-return(output_df)
-
+  
+  root_fun <- function(T) trait_fun(T) - target
+  
+  # low side of Topt
+  T_low <- tryCatch(
+    {uniroot(root_fun, lower = Tmin, upper = Topt)$root},
+    error = function(e) {
+      NA
+    }
+  )
+  
+  # high side of Topt
+  T_high <- tryCatch(
+    {uniroot(root_fun, lower = Topt, upper = Tmax)$root},
+    error = function(e) {
+      NA
+    }
+  )
+  
+  round(c(T_low, T_high), 6)
+  output_df<-data.frame(Temperature = c(T_low, T_high), Value = c(target, target), Predictor_name=c(Trait, Trait), Model_type=c(Model_type, Model_type) )
+  output_df<-output_df[!is.na(output_df$Temperature),]
+  return(output_df)
+  
 }
