@@ -187,7 +187,7 @@ for(Model_type in Model_types){
   # ---------------------------------------------------------------
   #-------------------- Start bootstrap loop ---------------------
   #----------------------------------------------------------------
-  for(bootstrap_run in 1:50){
+  for(bootstrap_run in 1:500){
     
     start.time<-Sys.time()
     message("Predicting for ", Model_type,"model: bootstrap run", bootstrap_run)
@@ -326,8 +326,8 @@ for(Model_type in Model_types){
                                                       replace = TRUE),]
     set.seed(bootstrap_run)
     background.resampled <- background[sample(seq_len(nrow(background)),
-                                                      size = nrow(background),
-                                                      replace = TRUE),]
+                                              size = nrow(background),
+                                              replace = TRUE),]
     
     #Use a resampling of pseudoabsences and presences to train the final model
     train.dataset <- data.frame( PA = c( rep(1,nrow(occurrence.resampled)) , rep(0,nrow(background.resampled)) ) , terra::extract( rasters, rbind( occurrence.resampled, background.resampled), ID=F ) )
@@ -409,36 +409,36 @@ for(Model_type in Model_types){
     # ----------------------------Variable contribution --------------------------------------
     # ------------------------------------------------------------------------------------
     suppressMessages({
-    #Create folder for results
-    varimp_folder<-file.path("results", "bootstrap_resampling", "variable_importance")
-    if(!dir.exists(varimp_folder))dir.create(varimp_folder,recursive=TRUE)
-    
-    #Get variable importance dataframe
-    varimp_df<-summary.model(model, print.data=T)
-    varimp_df<-varimp_df%>%
-      mutate(Variable = case_when(grepl("Salinity.Lt.min", Variable) ~ "Min. salinity",
-                                  grepl("light", Variable, ignore.case = TRUE) ~ "Mean light",
-                                  TRUE ~ Variable))%>%
-      mutate(Variable = case_when(grepl (paste0("Temperature.Lt.max|", Model_type, "_LTmax"), Variable) ~ "Max. temperature",
-                                  grepl(paste0("Temperature.Lt.min|", Model_type, "_LTmin"), Variable) ~ "Min. temperature",
-                                  TRUE ~ Variable))%>%
-      mutate(Variable = factor(Variable, levels = c("Min. temperature",
-                                                    "Min. salinity",
-                                                    "Max. temperature",
-                                                    "Mean light")),
-             Boostrap_run = bootstrap_run)
-    
-    if(nrow(varimp_bootstrap_df)==0){
-      varimp_bootstrap_df <- varimp_df
-    }else{
-      varimp_bootstrap_df <- bind_rows(varimp_bootstrap_df, varimp_df)
-    }
-    
-    if(bootstrap_run==50){
-      #Export
-      write.csv2(varimp_bootstrap_df, file.path(varimp_folder, paste0(Model_type, "_variable_importance.csv")), row.names=FALSE)
-    }
-    
+      #Create folder for results
+      varimp_folder<-file.path("results", "bootstrap_resampling", "variable_importance")
+      if(!dir.exists(varimp_folder))dir.create(varimp_folder,recursive=TRUE)
+      
+      #Get variable importance dataframe
+      varimp_df<-summary.model(model, print.data=T)
+      varimp_df<-varimp_df%>%
+        mutate(Variable = case_when(grepl("Salinity.Lt.min", Variable) ~ "Min. salinity",
+                                    grepl("light", Variable, ignore.case = TRUE) ~ "Mean light",
+                                    TRUE ~ Variable))%>%
+        mutate(Variable = case_when(grepl (paste0("Temperature.Lt.max|", Model_type, "_LTmax"), Variable) ~ "Max. temperature",
+                                    grepl(paste0("Temperature.Lt.min|", Model_type, "_LTmin"), Variable) ~ "Min. temperature",
+                                    TRUE ~ Variable))%>%
+        mutate(Variable = factor(Variable, levels = c("Min. temperature",
+                                                      "Min. salinity",
+                                                      "Max. temperature",
+                                                      "Mean light")),
+               Boostrap_run = bootstrap_run)
+      
+      if(nrow(varimp_bootstrap_df)==0){
+        varimp_bootstrap_df <- varimp_df
+      }else{
+        varimp_bootstrap_df <- bind_rows(varimp_bootstrap_df, varimp_df)
+      }
+      
+      if(bootstrap_run==500){
+        #Export
+        write.csv2(varimp_bootstrap_df, file.path(varimp_folder, paste0(Model_type, "_variable_importance.csv")), row.names=FALSE)
+      }
+      
     })
     # ggplot(varimp_df, aes(x = Percentage, y =Variable)) +
     #  geom_col(fill = "steelblue") +
@@ -535,7 +535,7 @@ for(Model_type in Model_types){
       }
       
       #--------------------
-      if(bootstrap_run==50 & Region =="MedSea"){
+      if(bootstrap_run==500 & Region =="MedSea"){
         #Export
         write.csv(area_depth_bootstrap_df, file.path(deptharea_folder, paste0("depth_area_info_all_",Model_type,"_present.csv")), row.names = F)
       }
@@ -595,7 +595,7 @@ for(Model_type in Model_types){
         logs_bootstrap_df <- bind_rows(logs_bootstrap_df, Overview)
       }
       
-      if(bootstrap_run==50){
+      if(bootstrap_run==500){
         write.csv2(logs_bootstrap_df, file.path(fut_log_folder, paste0(Model_type,"_raster_input_log_",predict.time,".csv")), row.names = FALSE)
       }
       
@@ -700,10 +700,17 @@ for(Model_type in Model_types){
           area_depth_future_bootstrap_df<- bind_rows(area_depth_future_bootstrap_df, area_depth_future)
         }
         
-
+        
       }
       
     }
+    
+    #---------------------------------
+    #---------Mark time ---------
+    #---------------------------------
+    elapsed <- round(as.numeric(difftime(Sys.time(), start.time, units = "mins")), 2)
+    message(sprintf("[Model: %s | Bootstrap run: %s] Completed bootstrap round in %0.2f minutes", 
+                    Model_type, bootstrap_run, elapsed))
     
   }
   
@@ -726,5 +733,5 @@ for(Model_type in Model_types){
     row.names = FALSE
   )
   
-
+  
 }
