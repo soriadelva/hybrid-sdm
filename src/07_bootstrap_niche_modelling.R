@@ -357,14 +357,6 @@ for(Model_type in Model_types){
                        verbose=FALSE)
     
     
-    #---------------------------------
-    #---------Mark time ---------
-    #---------------------------------
-    elapsed <- round(as.numeric(difftime(Sys.time(), start.time, units = "mins")), 2)
-    message(sprintf("[Model: %s] Completed model fitting in %0.2f minutes", 
-                    Model_type,  elapsed))
-    
-    
     #----------------------------------------------------------------------------
     #----------------------------------Make predictions -------------------------
     #----------------------------------------------------------------------------
@@ -448,7 +440,60 @@ for(Model_type in Model_types){
     #        title = Model_type) +
     #  theme_bw()
     # 
-  
+    
+    
+    # ------------------------------------------------------------------------------------
+    #----------------------------Variable Response------------------------------------
+    # ------------------------------------------------------------------------------------
+    #Create folder for results
+    response_folder<-file.path("results", "bootstrap_resampling", "response_curves")
+    if(!dir.exists(response_folder))dir.create(response_folder,recursive=TRUE)
+    
+    #Obtain a dataframe with all responses
+    response_df<-data.frame()
+    for( var.n in 1:length(names(rasters))) {
+      response_curve<-model.plot.bootstrap(model_type=Model_type,
+                                           model=model,
+                                           predictor.variable=var.n,
+                                           mintemp.seq = LTmintemp_seq,
+                                           maxtemp.seq = LTmaxtemp_seq,
+                                           minsal.seq = LTminsalinity_seq,
+                                           meanlight.seq = Meanlight_seq)
+      
+      
+      variable<-names(rasters)[var.n]
+      
+      variable <- case_when(
+        grepl("Salinity.Lt.min", variable) ~ "Min_Salinity",
+        grepl("light", variable, ignore.case = TRUE) ~ "Mean_light",
+        grepl(paste0("Temperature.Lt.max|", Model_type, "_LTmax"), variable) ~ "Max_temperature",
+        grepl(paste0("Temperature.Lt.min|", Model_type, "_LTmin"), variable) ~ "Min_temperature",
+        TRUE ~ variable
+      )
+      
+      response_curve$Predictor_name<-variable
+      response_curve$Model_type<-Model_type
+      response_curve$ Boostrap_run <- bootstrap_run
+      
+      if(nrow(response_df)==0){
+        response_df<-response_curve
+      }else{
+        response_df<-bind_rows(response_df, response_curve)
+      }
+    }
+    
+    if(nrow(response_bootstrap_df)==0){
+      response_bootstrap_df <- response_df
+    }else{
+      response_bootstrap_df <- bind_rows(response_bootstrap_df, response_df)
+    }
+    
+    
+    #Export
+    if(bootstrap_run==500){
+      write.csv2(response_bootstrap_df, file.path(response_folder, paste0(Model_type, "_response_curves.csv")), row.names=FALSE)
+    }
+    
     
     #--------------------------------------------------------------------
     #----------------------Create and save MESS maps ---------------
