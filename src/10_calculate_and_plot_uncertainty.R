@@ -25,12 +25,9 @@ for(Model_type in Model_types){
   
   varimp_real<-read.csv2(file.path(varimp_folder, paste0(Model_type, "_variable_importance.csv")))%>%
     mutate(Model_type = Model_type)
-  
-  if(nrow(varimp_df)==0){
-    varimp_df<-varimp_real
-  }else{
-    varimp_df<-bind_rows(varimp_df, varimp_real) 
-  }
+  varimp_df<-bind_rows(varimp_df, varimp_real) 
+
+  rm(varimp_real)
 }
 
 
