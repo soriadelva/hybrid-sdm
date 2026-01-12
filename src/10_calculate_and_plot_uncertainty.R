@@ -94,6 +94,7 @@ if(nrow(ci_deptharea_info)==0){
   }
 }
 
+
 #--------------------------------------------
 #---------Prepare datasets for plotting------
 #--------------------------------------------
@@ -246,9 +247,11 @@ area_change <- ggplot() +
     color = "black",
     position = position_dodge(width = 0.8),
     width = 0.2,
+    size=0.3,
     inherit.aes = FALSE
   ) +
   scale_y_continuous(breaks = c(0, -25, -50, -75, 100), limits = c(15, -100)) +
+  scale_y_continuous(breaks = c(0, -25, -50, -75, -100), limits = c(-100, 15)) +
   facet_wrap(~ Study_area, nrow = 1) +
   scale_fill_manual(
     values = c(
@@ -269,16 +272,19 @@ area_change <- ggplot() +
   theme_test() +
   theme(
     strip.background = element_rect(fill = "white"),
-    strip.text = element_text(size = 11, face = "bold"),
-    axis.text.x = element_text(size = 10, hjust = 0.5),
-    axis.text.y = element_text(size = 10),
-    axis.title.y = element_text(size = 11),
+    strip.text = element_text(size = rel(1.1)
+                              , face = "bold"
+                              ),
+    axis.text = element_text(colour = "black", size = rel(1)),
+    axis.title= element_text(colour = "black", size = rel(1.2)),
+    legend.text= element_text(colour = "black", size = rel(1)),
+    legend.title= element_blank(),
+    axis.title.y = element_text(vjust = 0.8),
+    axis.text.x = element_text( hjust = 0.5),
     legend.position = "top"
   )
 
 area_change
-
-
 
 #suitable_area/
 area_change #600-350
