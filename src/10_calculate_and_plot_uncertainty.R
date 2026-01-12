@@ -80,16 +80,22 @@ for(Predict.time in Predict.times){
 Predict.times <- c("Present","Future_all")
 for(Predict.time in Predict.times){
   for(Model_type in Model_types){
-#Load bootstrap data
-ci_deptharea_folder<-file.path("results", "bootstrap_resampling", "depth_area_overview", Predict.time)
-ci_deptharea_all<-read.csv(file.path(ci_deptharea_folder, paste0("depth_area_info_all_", Model_type, "_", Predict.time, ".csv") ))
-
-#Assign names based on model type for ci
-if(nrow(ci_deptharea_info)==0){
-  ci_deptharea_info<-ci_deptharea_all
-}else{
-  ci_deptharea_info<-bind_rows(ci_deptharea_info, ci_deptharea_all)
-}
+    
+    #Define folder
+    ci_deptharea_folder<-file.path("results", "bootstrap_resampling", "depth_area_overview", Predict.time)
+    
+    #Load data
+    if(Predict.time == "Present"){
+      ci_deptharea_all<-read.csv(file.path(ci_deptharea_folder, paste0("depth_area_info_all_", Model_type, "_present.csv") ))
+    }else{
+      ci_deptharea_all<-read.csv(file.path(ci_deptharea_folder, paste0("depth_area_info_all_", Model_type, "_future.csv") ))
+    }
+    
+    #Assemble data
+    ci_deptharea_info<-bind_rows(ci_deptharea_info, ci_deptharea_all)
+    
+    #Clean up
+    rm(ci_deptharea_all)
   }
 }
 
@@ -249,7 +255,6 @@ area_change <- ggplot() +
     size=0.3,
     inherit.aes = FALSE
   ) +
-  scale_y_continuous(breaks = c(0, -25, -50, -75, 100), limits = c(15, -100)) +
   scale_y_continuous(breaks = c(0, -25, -50, -75, -100), limits = c(-100, 15)) +
   facet_wrap(~ Study_area, nrow = 1) +
   scale_fill_manual(
