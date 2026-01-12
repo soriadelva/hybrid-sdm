@@ -55,27 +55,29 @@ ci_deptharea_info<-data.frame()
 for(Predict.time in Predict.times){
   for(Model_type in Model_types){
     
-    #Load data
+    #Define folder
     deptharea_folder<-file.path("results", "final_brt_predictions", "depth_area_overview", Predict.time)
+    
+    #Convert Present to present to read in files
+    if(Predict.time == "Present"){
+      Predict.time <- tolower(Predict.time)
+    }
+    
+    #Load files
     deptharea_all<-read.csv(file.path(deptharea_folder, paste0("depth_area_info_Full_range_", Model_type, "_", Predict.time, ".csv") ))
     deptharea_medsea<-read.csv(file.path(deptharea_folder, paste0("depth_area_info_MedSea_", Model_type, "_", Predict.time, ".csv") ))
     deptharea<-bind_rows(deptharea_all, deptharea_medsea)
     
-   
+    #Assemble data
+    deptharea_info<-bind_rows(deptharea_info, deptharea)
     
-    #Assign names based on model type
-    if(nrow(deptharea_info)==0){
-      deptharea_info<-deptharea
-    }else{
-      deptharea_info<-bind_rows(deptharea_info, deptharea)
-    }
-    
-   
+    #Clean up
+    rm(deptharea_all, deptharea_medsea, deptharea)
   }
 }
 
 #Define predict times and model types
-Predict.times <- c("Present","2100_RCP85")
+Predict.times <- c("Present","Future_all")
 for(Predict.time in Predict.times){
   for(Model_type in Model_types){
 #Load bootstrap data
