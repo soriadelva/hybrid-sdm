@@ -636,5 +636,305 @@ final_plot_combined
  ggsave(filename="Reclassified_suitability_2100_RCP45_Appendix.jpeg",plot=plot_2100_RCP45_reclassified, width = 20, height = 20, units = "cm", path=plot_path)
  ggsave(filename="Reclassified_suitability_2100_RCP85_Appendix.jpeg",plot=plot_2100_RCP85_reclassified, width = 20, height = 20, units = "cm", path=plot_path)
 
- ggsave(filename="Fina_figure_5.jpeg",plot=final_plot_combined, width = 21, height = 21, units = "cm", path=plot_path,   dpi = 400)
-# sf::sf_use_s2(TRUE)
+ ggsave(filename="Figure5.jpeg",plot=final_plot_combined, width = 21, height = 21, units = "cm", path=plot_path,   dpi = 750)
+
+
+ 
+ #----------------------------------------------------------
+ #---------Plot uncertainty of reclassified predictions-----
+ #----------------------------------------------------------
+ #Define predict times and model types
+ Predict.times <- c("Present","2100_RCP26", "2100_RCP45", "2100_RCP85")
+ Model_types <- c("Growth", "Germination", "FvFm", "Correlative")
+ 
+ for(Predict.time in Predict.times){
+   for(Model_type in Model_types){
+     
+     raster_folder<-file.path("results", "bootstrap_resampling", "final_suitability_maps", Predict.time)
+     # List all files in folder
+     raster_files_all <- list.files(raster_folder, full.names = TRUE)
+     
+     # Pattern to match: Final_predictions_brt_"Model_type"_"Predict.time"_<anything>.tif
+     if(Predict.time=="Present"){
+       pattern <- paste0("Final_prediction_brt_reclassified_", Model_type, "_", tolower(Predict.time))
+     }else{
+       pattern<-paste0("Final_prediction_brt_reclassified_", Model_type, "_", Predict.time)
+     }
+     # Filter files using grep
+     rast_files_to_load <- raster_files_all[grep(pattern, raster_files_all)]
+     rast_files_to_load
+     
+     # Load rasters
+     if(length(rast_files_to_load) > 0){
+       rast_stack <- terra::rast(rast_files_to_load)
+     } else {
+       warning(paste("No rasters found for", Model_type, "at", Predict.time))
+     }
+     
+     
+     true_pred_folder<-file.path("results", "final_brt_predictions", "final_suitability_maps", Predict.time)
+     if(Predict.time=="Present"){
+       ref<-terra::rast(file.path(true_pred_folder, paste0("Final_prediction_brt_reclassified_",Model_type,"_", tolower(Predict.time),".tif")))
+     }else{
+       ref<-terra::rast(file.path(true_pred_folder, paste0("Final_prediction_brt_reclassified_",Model_type,"_", Predict.time,".tif")))
+     }
+     
+     # Count 1s and 0s across the stack
+     count_ones <- terra::app(rast_stack, function(x) {
+       if(all(is.na(x))) {
+         return(NA)
+       } else {
+         sum(x == 1, na.rm = TRUE)
+       }
+     })
+     
+     count_zeros <- terra::app(rast_stack, function(x) {
+       if(all(is.na(x))) {
+         return(NA)
+       } else {
+         sum(x == 0, na.rm = TRUE)
+       }
+     })
+     
+     # Create output raster based on ref
+     output <- terra::ifel(ref == 1, count_ones, count_zeros)
+     
+     assign(paste0("Uncertainty_",Model_type, "_",Predict.time), output)
+     #terra::writeRaster(output, file.path(output_folder, paste0("uncertainty_rast_",Model_type,"_",Predict.time)))
+     
+   }
+ }
+ 
+ #Check an example
+ terra::plot(Uncertainty_Growth_2100_RCP45)
+ 
+ 
+ #-----------------------------------------------------
+ #-----------Load predicted distributions--------------
+ #-----------------------------------------------------
+ # Create an empty list to store plots
+ certainty_plots <- list()
+ 
+ #Define predict times and model types
+ Predict.times <- c("Present","2100_RCP26", "2100_RCP45", "2100_RCP85")
+ Model_types <- c("Correlative", "Growth", "Germination", "FvFm")
+ 
+ #Start loop
+ for(Predict.time in Predict.times){
+   for(Model_type in Model_types){
+     
+     
+     #--------------------------------------------
+     #----- Download shape of Europe -------------
+     #--------------------------------------------
+     sf::sf_use_s2(FALSE)
+     europe<-ne_countries(scale=10)%>%
+       sf::st_make_valid()
+     
+     europe <- sf::st_crop(europe, 
+                           c(xmin = -29.17,
+                             xmax = 42.167,
+                             ymin = 15.75,
+                             ymax = 73.58333 ))%>%
+       sf::st_union()
+     
+     
+     #--------------------------------------------
+     #-------------  Create plots  ---------------
+     #--------------------------------------------
+     
+     #--------------------
+     #--Suitability_plot--
+     #--------------------
+     brks <- seq(0, 500, by=1)
+     nb <- length(brks) - 1
+     viridis_palette <- viridis(nb)
+     
+     raster_file<-get(paste0("Uncertainty_",Model_type, "_",Predict.time))
+     
+     
+     template<-raster_file
+     values(template) <- rep(brks, length.out = ncell(template))
+     template<-mask(template, raster_file)
+     #Get extent
+     exten<-as.vector(terra::ext(raster_file))
+     
+     text_label<-switch(Model_type,
+                        "Correlative"="bold(Correlative)",
+                        "FvFm"="bold(F[v]/F[m])",
+                        "Germination"="bold(Germination)",
+                        "Growth"= "bold(Growth)")
+     
+     certainty<-ggplot() +
+       geom_sf(data=europe, color= "#f2f2f2", fill = "#f2f2f2")+
+       geom_spatraster(data=template)+
+       geom_spatraster(data = raster_file) +
+       scale_fill_gradientn(colors = viridis_palette, 
+                            values=scales::rescale(brks),
+                            breaks = c(0,100,200,300,400,500), 
+                            labels = c(0,100,200,300,400,500), 
+                            na.value = NA) +
+       labs(fill = "Bootstrap agreement (number of models)")+
+       scale_y_continuous(breaks=c(29,44,59))+
+       scale_x_continuous(position = "top", breaks=c(-12,7,26)) + 
+       theme_bw() +
+       theme(axis.title = element_blank(),
+             #plot.margin = margin(0, 0, 0, 0),
+             axis.text = element_text(size = 10))+
+       #theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm"))+
+       coord_sf(xlim = c(exten[1], exten[2]), 
+                ylim = c(exten[3], exten[4]), 
+                expand=FALSE)+
+       theme(aspect.ratio=0.9)+ #0.85
+       annotate(geom="label",
+                x= -12,
+                y=70,
+                label=text_label, 
+                fontface="bold",
+                fill="white", 
+                parse=TRUE,
+                hjust=0, 
+                size=4)+
+       theme(panel.grid.major = element_blank(),
+             panel.grid.minor = element_blank())
+     
+     
+     plot_type<-certainty
+     
+     if (Model_type == "Correlative") {
+       plot_type <- plot_type +
+         theme(
+           axis.text.x = element_text(color = "transparent"),
+           axis.ticks.x = element_line(color = "transparent"),
+           axis.text.y = element_text(color = "black"),
+           axis.ticks.y = element_line(color = "black")
+         )
+       
+     } else if (Model_type == "FvFm") {
+       plot_type <- plot_type +
+         theme(
+           axis.text.y = element_text(color = "transparent", angle=90),
+           axis.ticks.y = element_line(color = "transparent"),
+           axis.text.x = element_text(color = "transparent"),
+           axis.ticks.x = element_line(color = "transparent")
+         )
+     } else if (Model_type == "Germination") {
+       plot_type <-plot_type +
+         theme(
+           axis.text.y = element_text(color = "black"),
+           axis.ticks.y = element_line(color = "black"),
+           axis.text.x = element_text(color = "black"),
+           axis.ticks.x = element_line(color = "black")
+         )
+     } else if (Model_type == "Growth") {
+       plot_type <-plot_type +
+         theme(
+           axis.text.y = element_text(color = "transparent", angle=90),
+           axis.ticks.y = element_line(color = "transparent"),
+           axis.text.x = element_text(color = "black"),
+           axis.ticks.x = element_line(color = "black")
+         )}
+     
+     plot_name<-paste0("Certainty_",Model_type, "_", Predict.time)
+     certainty_plots[[plot_name]]<-plot_type
+     
+   }
+ }
+ 
+ 
+ #-------------------
+ #certainty_graphs
+ #-------------------
+ 
+ #--------------------------Create legends------------------------
+ 
+ legend_horizontal <- ggpubr::get_legend(
+   certainty_plots$Certainty_Correlative_Present + 
+     guides(
+       fill = guide_colorbar(
+         title.position = "bottom",
+         title.hjust = 0.5,
+         direction = "horizontal",
+         barwidth = 10,
+         barheight = 1
+       )
+     ) +
+     theme(
+       legend.position = "top",
+       legend.text = element_text(size = 10),
+       legend.title = element_text(size = 12),
+       legend.key.height = unit(0.4, "cm"),
+       legend.key.width = unit(2, "cm")
+     )
+ )
+ 
+ legend_horizontal <- ggpubr::as_ggplot(legend_horizontal)
+ 
+ #------------------Create plots----------------------------- 
+ final_plot_present<-wrap_plots(
+   certainty_plots$Certainty_Correlative_Present,
+   certainty_plots$Certainty_FvFm_Present,
+   certainty_plots$Certainty_Germination_Present,
+   certainty_plots$Certainty_Growth_Present,
+   ncol = 2
+ )/legend_horizontal &
+   theme(
+     axis.text = element_blank(),
+     axis.ticks = element_blank(),
+     legend.position = "none")
+ 
+ final_plot_2100_RCP26<- wrap_plots(
+   certainty_plots$Certainty_Correlative_2100_RCP26,
+   certainty_plots$Certainty_FvFm_2100_RCP26,
+   certainty_plots$Certainty_Germination_2100_RCP26,
+   certainty_plots$Certainty_Growth_2100_RCP26,
+   ncol = 2
+ )/legend_horizontal &
+   theme(
+     axis.text = element_blank(),
+     axis.ticks = element_blank(),
+     legend.position = "none")
+ 
+ 
+ final_plot_2100_RCP45<- wrap_plots(
+   certainty_plots$Certainty_Correlative_2100_RCP45,
+   certainty_plots$Certainty_FvFm_2100_RCP45,
+   certainty_plots$Certainty_Germination_2100_RCP45,
+   certainty_plots$Certainty_Growth_2100_RCP45,
+   ncol = 2
+ )/legend_horizontal &
+   theme(
+     axis.text = element_blank(),
+     axis.ticks = element_blank(),
+     legend.position = "none")
+ 
+ final_plot_2100_RCP85 <- wrap_plots(
+   certainty_plots$Certainty_Correlative_2100_RCP85,
+   certainty_plots$Certainty_FvFm_2100_RCP85,
+   certainty_plots$Certainty_Germination_2100_RCP85,
+   certainty_plots$Certainty_Growth_2100_RCP85,
+   ncol = 2
+ )/legend_horizontal &
+   theme(
+     axis.text = element_blank(),
+     axis.ticks = element_blank(),
+     legend.position = "none")
+ 
+ 
+ plot_present <- final_plot_present + plot_layout(heights = c( 1, 0.1))
+ plot_2100_RCP26 <- final_plot_2100_RCP26 + plot_layout(heights = c( 1, 0.1))
+ plot_2100_RCP45 <- final_plot_2100_RCP45 + plot_layout(heights = c( 1, 0.1))
+ plot_2100_RCP85 <- final_plot_2100_RCP85 + plot_layout(heights = c( 1, 0.1))
+ 
+ plot_present #1000 width, 863 height
+ plot_2100_RCP26
+ plot_2100_RCP45
+ plot_2100_RCP85
+ 
+ plot_path<-file.path("figures")
+ ggsave(filename="Certainty_present_Appendix.jpeg",plot=plot_present, width = 20, height = 20, units = "cm", path=plot_path)
+ ggsave(filename="Certainty_2100_RCP26_Appendix.jpeg",plot=plot_2100_RCP26, width = 20, height = 20, units = "cm", path=plot_path)
+ ggsave(filename="Certainty_2100_RCP45_Appendix.jpeg",plot=plot_2100_RCP45, width = 20, height = 20, units = "cm", path=plot_path)
+ ggsave(filename="Certainty_2100_RCP85_Appendix.jpeg",plot=plot_2100_RCP85, width = 20, height = 20, units = "cm", path=plot_path)
+ 
+ 
