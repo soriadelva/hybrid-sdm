@@ -97,18 +97,18 @@ light<-ggplot() +
   geom_ribbon(data = light_ci, aes( x = Variable_for_plotting, ymin = ci_lower_Germination, ymax = ci_upper_Germination), fill="#48a8b350", alpha = 0.2)  +
   geom_line(data= light_df,aes(group=Model_type,color=Model_type, x = Variable_for_plotting, y = Effect), size=0.8) +
   #scale_y_continuous(breaks=c(0,20,40,60,80,100), limits= c(-8.75, 110) ) +
-  scale_color_manual(values=c( "grey70","#f0a144ff","#48a8b3ff","#163f6bff"),
+  scale_color_manual(values=c( "#8c8c8c","#f0a144ff","#48a8b3ff","#163f6bff"),
                      labels=c("Correlative","FvFm" = expression(F[v]/F[m]), "Germination", "Growth"))+
   labs (x=  "Mean light",
         y= "Effect")  +
   theme_test()+
   theme(panel.background = element_blank(),
         legend.position = "top",
-        axis.text = element_text(colour = "black", size = rel(1)),
-        axis.title= element_text(colour = "black", size = rel(1.2)),
-        legend.text= element_text(colour = "black", size = rel(1.2)),
+        axis.text = element_text(colour = "black", size = rel(1.2)),
+        axis.title= element_text(colour = "black", size = rel(1.4)),
+        legend.text= element_text(colour = "black", size = rel(1.3)),
         legend.title= element_blank(),
-        axis.title.y = element_text(vjust = 0.5),
+        axis.title.y = element_text(vjust = 0.8),
         #axis.title.x = element_text(vjust = -1),
         legend.key = element_blank(),
         strip.background = element_rect(fill="white", colour="white", size=1.2),
@@ -118,7 +118,7 @@ light<-ggplot() +
             y = Inf,  # top edge
             hjust = -0.5,  # slightly inside the plot
             vjust = 1.5, 
-            size = 5, 
+            size = 6, 
             colour = "black", 
             fontface="bold")
 light
@@ -132,18 +132,18 @@ salinity<-ggplot() +
   geom_ribbon(data = salinity_ci, aes( x = Variable_for_plotting, ymin = ci_lower_Germination, ymax = ci_upper_Germination), fill="#48a8b350", alpha = 0.2)  +
   geom_line(data= salinity_df, aes(group=Model_type,color=Model_type, x = Variable_for_plotting, y = Effect), size=0.8) +
   #scale_y_continuous(breaks=c(0,20,40,60,80,100), limits= c(-8.75, 110) ) +
-  scale_color_manual(values=c( "grey70","#f0a144ff","#48a8b3ff","#163f6bff"),
+  scale_color_manual(values=c( "#8c8c8c","#f0a144ff","#48a8b3ff","#163f6bff"),
                      labels=c("Correlative","FvFm" = expression(F[v]/F[m]), "Germination", "Growth"))+
   labs (x=  "Minimum salinity (PSS)",
         y= "Effect")  +
   theme_test()+
   theme(panel.background = element_blank(),
         legend.position = "top",
-        axis.text = element_text(colour = "black", size = rel(1)),
-        axis.title= element_text(colour = "black", size = rel(1.2)),
-        legend.text= element_text(colour = "black", size = rel(1.2)),
+        axis.text = element_text(colour = "black", size = rel(1.2)),
+        axis.title= element_text(colour = "black", size = rel(1.4)),
+        legend.text= element_text(colour = "black", size = rel(1.3)),
         legend.title= element_blank(),
-        axis.title.y = element_text(vjust = 0.5),
+        axis.title.y = element_text(vjust = 0.8),
         #axis.title.x = element_text(vjust = -1),
         legend.key = element_blank(),
         strip.background = element_rect(fill="white", colour="white", size=1.2),
@@ -153,7 +153,7 @@ salinity<-ggplot() +
             y = Inf,  # top edge
             hjust = -0.5,  # slightly inside the plot
             vjust = 1.5, 
-            size = 5, 
+            size = 6, 
             colour = "black", 
             fontface="bold")
 salinity
@@ -166,18 +166,18 @@ maxtemp<-ggplot() +
   geom_ribbon(data = maxtemp_ci, aes( x = Variable_for_plotting, ymin = ci_lower_Germination, ymax = ci_upper_Germination), fill="#48a8b350", alpha = 0.2)  +
   geom_line(data= maxtemp_df,aes(group=Model_type,color=Model_type, x = Variable_for_plotting, y = Effect), size=0.8) +
   scale_y_continuous(breaks=c(0,0.3,0.6,0.9), limits= c(0, 1) ) +
-  scale_color_manual(values=c( "grey70","#f0a144ff","#48a8b3ff","#163f6bff"),
+  scale_color_manual(values=c( "#8c8c8c","#f0a144ff","#48a8b3ff","#163f6bff"),
                      labels=c("Correlative","FvFm" = expression(F[v]/F[m]), "Germination", "Growth"))+
   labs (x=  "Maximum temperature (°C)",
         y= "Effect")  +
   theme_test()+
   theme(panel.background = element_blank(),
         legend.position = "top",
-        axis.text = element_text(colour = "black", size = rel(1)),
-        axis.title= element_text(colour = "black", size = rel(1.2)),
-        legend.text= element_text(colour = "black", size = rel(1.2)),
+        axis.text = element_text(colour = "black", size = rel(1.2)),
+        axis.title= element_text(colour = "black", size = rel(1.4)),
+        legend.text= element_text(colour = "black", size = rel(1.3)),
         legend.title= element_blank(),
-        axis.title.y = element_text(vjust = 0.5),
+        axis.title.y = element_text(vjust = 0.8),
         # axis.title.x = element_text(vjust = -1),
         legend.key = element_blank(),
         strip.background = element_rect(fill="white", colour="white", size=1.2),
@@ -187,7 +187,7 @@ maxtemp<-ggplot() +
             y = Inf,  # top edge
             hjust = -0.5,  # slightly inside the plot
             vjust = 1.5, 
-            size = 5, 
+            size = 6, 
             colour = "black", 
             fontface="bold")
 maxtemp
@@ -199,18 +199,18 @@ mintemp <- ggplot() +
   geom_ribbon(data = mintemp_ci, aes( x = Variable_for_plotting, ymin = ci_lower_Germination, ymax = ci_upper_Germination), fill="#48a8b350", alpha = 0.2)  +
   geom_line(data= mintemp_df, aes(group=Model_type,color=Model_type, x = Variable_for_plotting, y = Effect), size=0.8) +
   #scale_y_continuous(breaks=c(0,20,40,60,80,100), limits= c(-8.75, 110) ) +
-  scale_color_manual(values=c( "grey70","#f0a144ff","#48a8b3ff","#163f6bff"),
+  scale_color_manual(values=c( "#8c8c8c","#f0a144ff","#48a8b3ff","#163f6bff"),
                      labels=c("Correlative","FvFm" = expression(F[v]/F[m]), "Germination", "Growth"))+
   labs (x=  "Minimum temperature (°C)",
         y= "Effect")  +
   theme_test()+
   theme(panel.background = element_blank(),
         legend.position = "top",
-        axis.text = element_text(colour = "black", size = rel(1)),
-        axis.title= element_text(colour = "black", size = rel(1.2)),
-        legend.text= element_text(colour = "black", size = rel(1.2)),
+        axis.text = element_text(colour = "black", size = rel(1.2)),
+        axis.title= element_text(colour = "black", size = rel(1.4)),
+        legend.text= element_text(colour = "black", size = rel(1.3)),
         legend.title= element_blank(),
-        axis.title.y = element_text(vjust = 0.5),
+        axis.title.y = element_text(vjust = 0.8),
         # axis.title.x = element_text(vjust = -0.5),
         legend.key = element_blank(),
         strip.background = element_rect(fill="white", colour="white", size=1.2),
@@ -220,7 +220,7 @@ mintemp <- ggplot() +
             y = Inf,  # top edge
             hjust = -0.5,  # slightly inside the plot
             vjust = 1.5, 
-            size = 5, 
+            size = 6, 
             colour = "black", 
             fontface="bold")
 
@@ -239,13 +239,13 @@ legend_horizontal_comb <- ggpubr::get_legend(
         title = NULL,          # position of the title
         # horizontal justification
         direction = "horizontal",   # make legend horizontal
-        keywidth = unit(0.4 ,"cm"),   # width of each key
-        keyheight = unit(0.4, "cm") # height of each key
+        keywidth = unit(0.8 ,"cm"),   # width of each key
+        keyheight = unit(0.8, "cm") # height of each key
       )
     ) +
     theme(
       legend.position = "bottom",
-      legend.text = element_text(size = 12)
+      legend.text = element_text(size = 17)
     )
 )
 
@@ -264,7 +264,7 @@ final_plot_combined<-legend_horizontal_comb/wrap_plots(
     legend.position = "none")
 
 final_plot_combined<- final_plot_combined+ plot_layout(heights = c( 0.1, 1))
-final_plot_combined #width 800, height 631
+final_plot_combined #width 1000, height 800
 
 
 #---------------------------------------------
@@ -289,3 +289,4 @@ ggplot() +
         legend.key = element_blank(),
         strip.background = element_rect(fill="white",color="black", size=1.2),
         panel.border = element_rect(colour="black")) 
+
